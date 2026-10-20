@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>果蠅大腦玩 Doom 與 21 點</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: 實驗記錄本 — 一台「錄影 + 迴路 + 讀出」的播放台在上，下面依序是三條件並排、調諧曲線、50 局統計、21 點播放台與學習曲線、說明。
+   左半腦一律用藍、右半腦一律用琥珀，整頁同一套編碼。 */
+:root{
+  --bg:#edf1f2; --panel:#ffffff; --ink:#16222a; --muted:#5a6a73; --line:#cdd7db; --soft:#e2e9ec;
+  --left:#1f6fb2; --right:#c46d14; --fire:#cf3d2b; --ok:#2f8a57;
+  --hit:#a67c00; --stand:#6f4fc4; --double:#1b8a8a;
+  --sans:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1418; --panel:#162027; --ink:#e2e9ed; --muted:#8c9ea8; --line:#293741; --soft:#1d2a32;
+  --left:#5ea8e4; --right:#eea04c; --fire:#ff6c56; --ok:#5cc58a; --hit:#b8950f; --stand:#8a68d0; --double:#2aa3a3; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1418; --panel:#162027; --ink:#e2e9ed; --muted:#8c9ea8; --line:#293741; --soft:#1d2a32;
+  --left:#5ea8e4; --right:#eea04c; --fire:#ff6c56; --ok:#5cc58a; --hit:#b8950f; --stand:#8a68d0; --double:#2aa3a3; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.7;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:40px}
+h1{font-size:clamp(28px,4.4vw,44px);font-weight:900;line-height:1.15;margin:0;text-wrap:balance;letter-spacing:.01em}
+h2{font-size:21px;font-weight:700;margin:0;text-wrap:balance}
+h3{font-size:15px;font-weight:700;margin:0}
+p{margin:0;max-width:68ch}
+a{color:var(--left)}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.L{color:var(--left)} .R{color:var(--right)}
+header{display:flex;flex-direction:column;gap:12px}
+.lede{font-size:16px;color:var(--ink)}
+.facts{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted)}
+.facts b{color:var(--ink);font-family:var(--mono);font-weight:600}
+section{display:flex;flex-direction:column;gap:14px}
+.sub{color:var(--muted);font-size:14px}
+
+/* 播放台 */
+.rig{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{font:inherit;font-size:14px;border:1px solid var(--line);background:transparent;color:var(--ink);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.tab:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--left);outline-offset:2px}
+.stage{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px}
+.stage.wide{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr)}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+.screen{display:flex;flex-direction:column;gap:8px;min-width:0}
+.vbox{position:relative;background:#000;border-radius:6px;overflow:hidden;aspect-ratio:4/3;max-width:100%}
+.vbox video{width:100%;height:100%;display:block;image-rendering:pixelated}
+.vbox.wide{aspect-ratio:16/9}.vbox.wide video{image-rendering:auto}
+.hud{position:absolute;left:10px;top:8px;right:10px;display:flex;justify-content:space-between;font-family:var(--mono);font-size:13px;color:#fff;text-shadow:0 1px 2px #000;pointer-events:none}
+.hud .k{font-size:22px;font-weight:600}
+.flyview{display:flex;flex-direction:column;gap:2px}
+.flyview svg{width:100%;height:auto;display:block}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.btn{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--soft);color:var(--ink);padding:5px 12px;border-radius:6px;cursor:pointer}
+.btn.primary{background:var(--ink);color:var(--panel);border-color:var(--ink);min-width:72px}
+.controls input[type=range]{flex:1;min-width:120px;accent-color:var(--ink)}
+.speed{display:flex;gap:4px}
+.speed .btn[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+.brain{display:flex;flex-direction:column;gap:10px;min-width:0}
+.brain svg{width:100%;height:auto;display:block}
+.node circle{stroke:var(--ink);stroke-width:1.2}
+.node text{font-family:var(--mono);fill:var(--ink)}
+.node .nm{font-size:11px} .node .hz{font-size:12px;font-weight:600}
+.edge{fill:none;stroke-width:2}
+.edge.ex{stroke:var(--muted)} .edge.in{stroke:var(--muted);stroke-dasharray:5 4}
+.ew{font-family:var(--mono);font-size:9.5px;fill:var(--muted)}
+.dead line{stroke:var(--fire);stroke-width:2.5}
+.readout{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;align-items:center;font-size:13px}
+.readout .lab{color:var(--muted)}
+.meter{position:relative;height:14px;background:var(--soft);border-radius:3px;overflow:hidden}
+.meter .fill{position:absolute;top:0;bottom:0;background:var(--ink);opacity:.75}
+.meter .th{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--fire)}
+.meter .mid{position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.chip.on{color:#fff;border-color:transparent}
+.chip.on.l{background:var(--left)} .chip.on.r{background:var(--right)} .chip.on.f{background:var(--fire)} .chip.on.s{background:var(--muted)}
+.chip.on.bh{background:var(--hit)} .chip.on.bs{background:var(--stand)} .chip.on.bd{background:var(--double)} .chip.dim{opacity:.4}
+.cards{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:.08em}
+.note{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.timeline{position:relative}
+.timeline canvas{width:100%;height:260px;display:block;cursor:pointer}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.sw{display:inline-block;width:14px;height:3px;vertical-align:middle;margin-right:5px}
+
+/* 並排 */
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.trio{grid-template-columns:minmax(0,1fr)}}
+.cell{display:flex;flex-direction:column;gap:6px;min-width:0}
+.cell .cap{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:13px}
+.cell .big{font-family:var(--mono);font-size:20px;font-weight:600}
+
+/* 圖表 */
+.charts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:860px){.charts{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card svg{width:100%;height:auto;display:block}
+.ax{font-family:var(--mono);font-size:10.5px;fill:var(--muted)}
+.axl{stroke:var(--line);stroke-width:1}
+.grid{stroke:var(--soft);stroke-width:1}
+.lbl{font-size:11.5px;fill:var(--ink)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td.n{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tblwrap{overflow-x:auto}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:760px){.cols{grid-template-columns:minmax(0,1fr)}}
+ul{margin:0;padding-left:1.2em;max-width:68ch} li{margin:2px 0}
+footer{font-size:12.5px;color:var(--muted);display:flex;flex-direction:column;gap:4px}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">fruitfly-lab · fly-blackjack 本機重現 · 2026-10-15 / 16</div>
+  <h1>果蠅大腦玩 Doom 與 21 點</h1>
+  <p class="lede">一個從 FlyWire 連結體切出來的果蠅視覺追蹤迴路（3,963 顆神經元、354,879 條連結），沒有經過任何訓練，直接接到 Doom 裡轉身、瞄準、開火。下面的影片是本機重跑的第 0 局，右邊的迴路圖和下方的放電曲線跟影片逐格同步。下半頁是第二個重現：從 MaleCNS 切出的蕈狀體靠多巴胺學 21 點，同樣有逐手同步的影片。</p>
+  <div class="facts">
+    <span>神經元模型 <b>LIF</b>（Shiu et al. 2024 參數）</span>
+    <span>每遊戲格 <b>1/35 秒 = 286</b> 個 0.1 ms 模擬步</span>
+    <span>種子 <b>0</b>，與作者逐局相同</span>
+    <span>左半腦 <b class="L">藍</b>　右半腦 <b class="R">琥珀</b></span>
+  </div>
+</header>
+
+<section aria-labelledby="h-rig">
+  <h2 id="h-rig">逐格看迴路怎麼打</h2>
+  <div class="rig">
+    <div class="tabs" role="tablist" aria-label="條件">
+      <button class="tab" role="tab" id="tab-fly" data-p="fly" aria-selected="true">完整接線</button>
+      <button class="tab" role="tab" id="tab-lesion025" data-p="lesion025" aria-selected="false">損毀 AOTU025</button>
+      <button class="tab" role="tab" id="tab-scrambled_cal" data-p="scrambled_cal" aria-selected="false">打亂接線（各自校準）</button>
+    </div>
+    <div class="stage">
+      <div class="screen">
+        <div class="vbox">
+          <video id="vid" muted playsinline preload="auto" src="fly.mp4"></video>
+          <div class="hud"><span>t = <span id="hudT">0.0</span> s</span><span>擊殺 <span class="k" id="hudK">0</span></span></div>
+        </div>
+        <div class="flyview">
+          <span class="sub" style="font-size:12px">果蠅視野中的敵人：深灰 ±6° 是雙眼重疊區，淺灰 ±30° 內 DNa02 不放電</span>
+          <svg id="fv" viewBox="0 0 400 46" role="img" aria-label="果蠅視野中的敵人方位"></svg>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="play">▶ 播放</button>
+          <button class="btn" id="back" aria-label="上一格">◀︎ 格</button>
+          <button class="btn" id="fwd" aria-label="下一格">格 ▶︎</button>
+          <input type="range" id="scrub" min="0" max="480" value="0" aria-label="時間">
+          <div class="speed" role="group" aria-label="速度">
+            <button class="btn" data-r="0.25" aria-pressed="false">¼×</button>
+            <button class="btn" data-r="0.5" aria-pressed="false">½×</button>
+            <button class="btn" data-r="1" aria-pressed="true">1×</button>
+          </div>
+        </div>
+      </div>
+      <div class="brain">
+        <svg id="circ" viewBox="0 0 460 300" role="img" aria-label="迴路圖"></svg>
+        <div class="readout">
+          <span class="lab">轉向訊號</span>
+          <div class="meter" id="steerM"><div class="mid"></div><div class="fill" id="steerF"></div><div class="th" id="thL"></div><div class="th" id="thR"></div></div>
+          <span class="lab"></span><span class="mono sub" id="steerV">R − L = 0</span>
+          <span class="lab">開火條件</span>
+          <div class="meter" id="fireM"><div class="fill" id="fireF"></div><div class="th" id="fireT"></div></div>
+          <span class="lab"></span><span class="mono sub" id="fireV">min(AOTU019 L, R) = 0 Hz</span>
+          <span class="lab">本格動作</span>
+          <div class="chips"><span class="chip l" id="cL">左轉</span><span class="chip r" id="cR">右轉</span><span class="chip f" id="cF">開火</span><span class="chip s" id="cS">搜尋</span></div>
+        </div>
+        <p class="note" id="condNote"></p>
+      </div>
+    </div>
+    <div class="timeline">
+      <canvas id="tl" aria-label="四組神經元放電率時間序列，點一下跳到該時間"></canvas>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--left)"></i>左側</span>
+      <span><i class="sw" style="background:var(--right)"></i>右側</span>
+      <span><i class="sw" style="background:var(--fire)"></i>擊殺</span>
+      <span>灰底：畫面上有敵人</span>
+      <span>點曲線可以跳到該時間</span>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-trio">
+  <h2 id="h-trio">三種接線並排</h2>
+  <p class="sub">同一個種子、同一張地圖、同一套讀出規則，只差在大腦。按一次播放三個一起跑，各自打到死為止。</p>
+  <div class="controls"><button class="btn primary" id="trioPlay">▶ 三個一起播放</button><button class="btn" id="trioReset">回到開頭</button></div>
+  <div class="trio" id="trio"></div>
+</section>
+
+<section aria-labelledby="h-tune">
+  <h2 id="h-tune">為什麼正前方靠的是 AOTU019</h2>
+  <div class="charts">
+    <div class="card">
+      <h3>校準：敵人在各方位時的放電率</h3>
+      <svg id="tune" viewBox="0 0 460 280" role="img" aria-label="方位調諧曲線"></svg>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--left)"></i>AOTU019_L</span>
+        <span><i class="sw" style="background:var(--right)"></i>AOTU019_R</span>
+        <span><i class="sw" style="background:var(--left);height:0;border-top:2px dashed var(--left)"></i>DNa02_L</span>
+        <span><i class="sw" style="background:var(--right);height:0;border-top:2px dashed var(--right)"></i>DNa02_R</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>這張圖說了什麼</h3>
+      <p>DNa02 是下行到腹神經索、控制轉向的神經元。敵人在正前方 ±30° 以內時，兩側 DNa02 幾乎完全不放電（灰底區域），只有在 45° 以外才開始反應。</p>
+      <p>正前方的轉向和開火全部來自 AOTU019：它在 LC10a 之後只隔一個突觸，敵人在左邊時左側放電、在右邊時右側放電、在正中間時兩側一起放電，正好被拿來當「轉向」和「開火」的讀數。</p>
+      <p>所以如果只讀 DNa02，果蠅在 50 局裡平均只打得到 <b class="mono" id="altK">0.68</b> 隻。作者在 README 寫了讀出要加上 AOTU019 的理由（子圖裡 DNa02 沒有基線活動），沒有寫出的是它的後果：正前方的瞄準與開火完全不經過 DNa02。這是本機重現時發現的。</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-stats">
+  <h2 id="h-stats">50 局統計</h2>
+  <div class="charts">
+    <div class="card">
+      <h3>每局擊殺數（種子 0–49，ViZDoom 1.3.0）</h3>
+      <svg id="strip" viewBox="0 0 460 300" role="img" aria-label="各條件每局擊殺數"></svg>
+      <p class="sub">每個點是一局，橫線是平均，粗線段是 95% 信賴區間。</p>
+    </div>
+    <div class="card">
+      <h3>數字</h3>
+      <div class="tblwrap"><table class="tbl" id="statT"></table></div>
+      <p class="sub">作者原本每個條件只跑 10 局，完整接線對損毀 AOTU025 的 p = 0.048。加到 50 局後 p &lt; 0.0001，差距站得住。換成 ViZDoom 1.3.2 會改變遊戲亂數，數字變成 7.92 對 3.92，方向一樣。</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-bj">
+  <h2 id="h-bj">另一個重現：蕈狀體學 21 點</h2>
+  <p class="lede">問：從 MaleCNS 連結體切出來的蕈狀體，只靠「贏了放獎勵多巴胺、輸了放懲罰多巴胺」，能不能學會 21 點？答：學得到「不要爆牌」，每手平均輸贏從 −0.26 進步到 −0.15（約等於永遠停牌），但學不到基本策略。切斷多巴胺就完全不會進步。</p>
+  <p class="sub">名詞：<b>Kenyon 細胞（KC）</b>把每個「手上點數＋莊家明牌＋候選動作」編成一組稀疏活動，像一種氣味；<b>輸出神經元（MBON）</b>分趨近型 56 顆與迴避型 41 顆，<b>好惡</b>＝趨近總活動 − 迴避總活動，果蠅選好惡最高的動作；<b>探索率</b>＝不看好惡、隨機出牌的比例，從 35% 衰減到 3%；<b>基本策略</b>＝數學上最佳的查表，每個手牌對每張明牌該要牌、停牌或加倍；<b>260 格</b>＝26 種手牌（硬 5–21、軟 13–21）× 10 種明牌；<b>軟</b>＝手上有 A 算 11；<b>加倍</b>＝賭注加倍、只再抽一張；<b>黑傑克</b>＝前兩張就 21。</p>
+  <p class="sub">怎麼看影片：21 點沒有遊戲畫面，影片是從本機重跑（種子 0，30,000 手）的逐手紀錄畫出來的，左邊牌桌、右上蕈狀體活動、右下學習曲線與 260 格策略表，字小的話按「全螢幕」。開頭 6 手和最後 6 手慢速逐步播，中間 29,988 手快轉 18 秒。影片旁的讀數和下方的曲線跟影片逐格同步。三種平均不同：影片曲線是 1,000 手滑動平均，下方時間軸是從第 1 手起的累積平均，最下面的學習曲線圖是每 2,000 手平均再取 3 個種子的平均，所以數字略有出入。</p>
+  <div class="rig">
+    <div class="tabs" role="tablist" aria-label="21 點條件">
+      <button class="tab" role="tab" id="btab-bj_fly" data-b="bj_fly" aria-selected="true">連結體 + 多巴胺</button>
+      <button class="tab" role="tab" id="btab-bj_nodopa" data-b="bj_nodopa" aria-selected="false">切斷多巴胺</button>
+      <button class="tab" role="tab" id="btab-bj_untrained" data-b="bj_untrained" aria-selected="false">未訓練（不學習）</button>
+    </div>
+    <div class="stage wide">
+      <div class="screen">
+        <div class="vbox wide">
+          <video id="bjVid" muted playsinline preload="auto" src="bj_fly.mp4"></video>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="bjPlay">▶ 播放</button>
+          <button class="btn" id="bjBack" aria-label="上一格">◀︎ 格</button>
+          <button class="btn" id="bjFwd" aria-label="下一格">格 ▶︎</button>
+          <button class="btn" id="bjFull">全螢幕</button>
+          <input type="range" id="bjScrub" min="0" max="100" value="0" aria-label="時間">
+          <div class="speed" role="group" aria-label="速度">
+            <button class="btn" data-r="0.5" aria-pressed="false">½×</button>
+            <button class="btn" data-r="1" aria-pressed="true">1×</button>
+            <button class="btn" data-r="2" aria-pressed="false">2×</button>
+          </div>
+        </div>
+      </div>
+      <div class="brain">
+        <div class="readout">
+          <span class="lab">進度</span><span><b id="bjHudH">第 1 手</b>　<span class="sub">階段：<span id="bjStage">發牌</span>　累積每手 <span class="mono" id="bjHudC">+0.000</span></span></span>
+          <span class="lab">果蠅</span><span><span class="cards" id="bjP"></span> <span class="sub" id="bjPT"></span></span>
+          <span class="lab">莊家</span><span><span class="cards" id="bjD"></span> <span class="sub" id="bjDT"></span></span>
+          <span class="lab">候選好惡</span>
+          <div class="chips"><span class="chip bh" id="bcH">要牌</span><span class="chip bs" id="bcS">停牌</span><span class="chip bd" id="bcD">加倍</span></div>
+          <span class="lab"></span><span class="sub" id="bjDec"></span>
+          <span class="lab">結果</span><span id="bjOut">—</span>
+          <span class="lab">策略表</span><span class="sub" id="bjAgr"></span>
+        </div>
+        <p class="note" id="bjNote"></p>
+      </div>
+    </div>
+    <div class="timeline">
+      <canvas id="bjTl" aria-label="累積每手輸贏隨影片進度，點一下跳到該時間"></canvas>
+    </div>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--ok)"></i>累積每手平均輸贏</span>
+      <span>灰底：快轉段</span>
+      <span>虛線：永遠停牌 / 隨機出牌的參考值</span>
+      <span>點曲線可以跳到該時間</span>
+    </div>
+  </div>
+  <div class="charts">
+    <div class="card">
+      <h3>每 2,000 手的平均輸贏（3 個種子平均）</h3>
+      <svg id="bj" viewBox="0 0 460 300" role="img" aria-label="21 點學習曲線"></svg>
+      <div class="legend" id="bjLeg"></div>
+    </div>
+    <div class="card">
+      <h3>fly-blackjack 在做什麼</h3>
+      <p>這個 repo 從 MaleCNS 雄果蠅連結體切出蕈狀體（嗅覺學習中樞）：投射神經元 → Kenyon 細胞 → 輸出神經元，加上多巴胺神經元。每一個「手上點數 + 莊家明牌 + 候選動作」都編碼成一組投射神經元的輸入，像一種氣味；果蠅比較要牌、停牌、加倍三種氣味讓輸出神經元給出的好惡，選最好的那個。一手結束後，贏了就對這手做過的選擇放獎勵多巴胺，輸了放懲罰多巴胺，KC→MBON 的突觸因此慢慢改變。</p>
+      <p>左圖是 3 個種子的平均：有多巴胺的那一組從第一個 2,000 手平均每手 −0.25 學到最後的 −0.15，切斷多巴胺或關掉可塑性就停在 −0.47 左右，和隨機出牌差不多（影片只播種子 0，數字略有不同）。這部分本機重現成功。</p>
+      <p>但「學到什麼策略」重現不了：作者附的大腦、程式註解、README 三者各說一套，本機重跑的又是另一套。與基本策略的一致率本機是 45.3%，作者寫 48–52%。一致率沒有因學習而上升，是因為基本策略 260 格裡有 115 格要牌、106 格停牌、39 格加倍：未訓練的蕈狀體幾乎每格都要牌，對中 117 格（45%，其中 106 格是要牌）；學完後它幾乎每格都停牌（種子 0：停牌 214、加倍 40、要牌 6），換成對中停牌那些格（101 格）加上少數加倍，一致率差不多，但輸贏改善很多。</p>
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="h-notes">
+  <h2 id="h-notes">哪些來自資料、哪些是人為設定</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>來自連結體</h3>
+      <ul>
+        <li>子圖內 354,879 條連結的結構與正負號（FlyWire v783，本機逐條核對過）</li>
+        <li>神經元方程與參數（Shiu et al. 2024 全腦 LIF 模型）</li>
+        <li>沒有任何學習或訓練</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>人為設定</h3>
+      <ul>
+        <li>視覺編碼：用遊戲給的物體標籤算敵人方位，代替複眼光學</li>
+        <li>讀出規則：轉向 = (DNa02 右 − 左) + (AOTU019 右 − 左)；兩側 AOTU019 都超過閾值才開火</li>
+        <li>閾值：掃一次方位角校準後固定</li>
+        <li>沒看到敵人、迴路也安靜時，固定向右轉找敵人（灰色「搜尋」）</li>
+      </ul>
+    </div>
+  </div>
+  <p class="sub">所以這個 demo 證明的是「這段真實接線在這套人為的輸入輸出下，比打亂的接線好用」，不代表果蠅會玩遊戲，也不涉及學習。完整說明見 report_fruitfly_lab.docx 與 report_blackjack.docx。</p>
+</section>
+
+<footer>
+  <span>原始專案：<a href="https://github.com/webergithub/fruitfly-lab" target="_blank" rel="noopener">fruitfly-lab</a>（commit 8c27fe8）、<a href="https://github.com/WilliamJones/fly-blackjack" target="_blank" rel="noopener">fly-blackjack</a>（commit 004b2e3）、<a href="https://github.com/philshiu/Drosophila_brain_model" target="_blank" rel="noopener">Drosophila_brain_model</a>。</span>
+  <span>錄影與資料：fly_play_game/demo/record_demo.py（Doom）、record_bj.py + render_bj.py（21 點）、build_data.py。</span>
+</footer>
+</div>
+
+<script>
+const PANEL=["LC10a_L","LC10a_R","AOTU019_L","AOTU019_R","AOTU025_L","AOTU025_R","DNa02_L","DNa02_R"];
+const NAMES={fly:"完整接線",lesion025:"損毀 AOTU025",scrambled_cal:"打亂接線（各自校準）"};
+const NOTES={
+  fly:"真實接線。敵人在左，LC10a_L → AOTU019_L 放電，轉向訊號變負就左轉；敵人在正中間，兩側 AOTU019 一起放電就開火。",
+  lesion025:"兩側 AOTU025 被靜音（紅叉）。它把外圍視野的訊號送到同側 DNa02；少了它，敵人在畫面邊緣時迴路反應變弱。50 局平均擊殺從 9.86 降到 4.92。",
+  scrambled_cal:"保持每顆神經元的連結數不變，但把連到誰隨機打亂，再用打亂後的迴路重新校準閾值。圖中的連線是真實接線，已不代表這個大腦。"
+};
+const SCALE=250, FPS=35;
+let D, P="fly", idx=0;
+const $=s=>document.querySelector(s);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const svgNS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent){const e=document.createElementNS(svgNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);parent&&parent.appendChild(e);return e}
+const cal=p=>D.cal[p==="scrambled_cal"?"scrambled":"fly"].cal;
+
+/* ---------- 迴路圖 ---------- */
+const POS={LC10a_L:[125,50],LC10a_R:[335,50],AOTU019_L:[75,150],AOTU025_L:[155,150],AOTU025_R:[305,150],AOTU019_R:[385,150],DNa02_L:[150,250],DNa02_R:[310,250]};
+/* 標籤位置：[dx, dy, 對齊]，放在不和連線交叉的那一側；左右由顏色與上方的半腦標示區分 */
+const LAB={LC10a_L:[0,-30,"middle"],LC10a_R:[0,-30,"middle"],AOTU019_L:[-22,-22,"end"],AOTU019_R:[22,-22,"start"],AOTU025_L:[22,-22,"start"],AOTU025_R:[-22,-22,"end"],DNa02_L:[0,36,"middle"],DNa02_R:[0,36,"middle"]};
+let nodeEls={};
+function drawCircuit(){
+  const s=$("#circ"); s.innerHTML="";
+  const defs=el("defs",{},s);
+  const mk=el("marker",{id:"arr",viewBox:"0 0 10 10",refX:"9",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"},defs);
+  el("path",{d:"M0,0 L10,5 L0,10 z",fill:"var(--muted)"},mk);
+  const mb=el("marker",{id:"bar",viewBox:"0 0 10 10",refX:"5",refY:"5",markerWidth:"8",markerHeight:"8",orient:"auto"},defs);
+  el("path",{d:"M5,0 L5,10",stroke:"var(--muted)","stroke-width":"3"},mb);
+  const main=D.circuit.edges.filter(e=>Math.abs(e.w_mv)>=30);
+  const R=n=>n.startsWith("LC10a")?24:20;
+  for(const e of main){
+    const [x1,y1]=POS[e.from],[x2,y2]=POS[e.to];
+    const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy),ux=dx/L,uy=dy/L;
+    const a=[x1+ux*R(e.from),y1+uy*R(e.from)],b=[x2-ux*(R(e.to)+3),y2-uy*(R(e.to)+3)];
+    const inh=e.w_mv<0;
+    el("path",{d:`M${a[0]},${a[1]} L${b[0]},${b[1]}`,class:"edge "+(inh?"in":"ex"),"marker-end":inh?"url(#bar)":"url(#arr)",opacity:P==="scrambled_cal"?.25:1},s);
+    const f=inh?.22:.5,mx=a[0]+(b[0]-a[0])*f,my=a[1]+(b[1]-a[1])*f,left=e.from.endsWith("_L");
+    const t=el("text",{x:mx+(left?-7:7),y:my+(inh?-2:3),class:"ew","text-anchor":left?"end":"start"},s);
+    t.textContent=(e.w_mv>0?"+":"")+Math.round(e.w_mv);
+  }
+  for(const [x,a,t,c] of [[8,"start","左半腦","--left"],[452,"end","右半腦","--right"]]){const h=el("text",{x,y:16,"text-anchor":a,class:"nm","font-weight":"700",fill:`var(${c})`},s);h.textContent=t}
+  const lt2=el("text",{x:230,y:297,class:"ew","text-anchor":"middle"},s);lt2.textContent="實線箭頭＝興奮　虛線＝抑制（AOTU019 → 對側 DNa02）　數字＝總突觸權重 mV";
+  nodeEls={};
+  for(const n of PANEL){
+    const [x,y]=POS[n],side=n.endsWith("_L")?"--left":"--right";
+    const g=el("g",{class:"node"},s);
+    const c=el("circle",{cx:x,cy:y,r:R(n),fill:`var(${side})`,"fill-opacity":0.08},g);
+    const [lx,ly,la]=LAB[n];const nm=el("text",{x:x+lx,y:y+ly,class:"nm","text-anchor":la},g);
+    nm.textContent=n.split("_")[0]+(n.startsWith("LC10a")?` (${D.circuit.sizes[n]})`:"");
+    const hz=el("text",{x,y:y+4,class:"hz","text-anchor":"middle"},g);
+    if(P==="lesion025"&&n.startsWith("AOTU025")){const d=el("g",{class:"dead"},g);el("line",{x1:x-14,y1:y-14,x2:x+14,y2:y+14},d);el("line",{x1:x+14,y1:y-14,x2:x-14,y2:y+14},d);}
+    nodeEls[n]={c,hz};
+  }
+}
+
+/* ---------- 果蠅視野條 ---------- */
+function drawFlyView(e){
+  const s=$("#fv"); s.innerHTML="";
+  const X=az=>200+az/90*190;
+  el("rect",{x:X(-30),y:6,width:X(30)-X(-30),height:26,fill:"var(--soft)"},s);
+  el("rect",{x:X(-6),y:6,width:X(6)-X(-6),height:26,fill:"var(--line)"},s);
+  el("line",{x1:10,y1:32,x2:390,y2:32,class:"axl"},s);
+  for(const a of [-90,-45,0,45,90]){el("line",{x1:X(a),y1:32,x2:X(a),y2:36,class:"axl"},s);const t=el("text",{x:X(a),y:45,class:"ax","text-anchor":"middle"},s);t.textContent=(a>0?"+":"")+a+"°";}
+  for(const az of e){el("circle",{cx:X(az),cy:19,r:6,fill:az<0?"var(--left)":"var(--right)",stroke:"var(--ink)","stroke-width":1},s)}
+}
+
+/* ---------- 時間軸 ---------- */
+const tl=$("#tl"); let tlBase=null;
+const ROWS=[["LC10a","LC10a（視覺輸入）"],["AOTU019","AOTU019（中央視野）"],["AOTU025","AOTU025（外圍視野）"],["DNa02","DNa02（下行轉向）"]];
+function drawTimeline(){
+  const ep=D.episodes[P],dpr=window.devicePixelRatio||1,W=tl.clientWidth,H=260;
+  tl.width=W*dpr;tl.height=H*dpr;
+  const off=document.createElement("canvas");off.width=tl.width;off.height=tl.height;
+  const g=off.getContext("2d");g.scale(dpr,dpr);
+  const padL=8,padR=8,top=4,rowH=(H-top-18)/4,n=ep.n,X=i=>padL+i/(Math.max(n,481)-1)*(W-padL-padR);
+  g.font="11px "+css("--sans");
+  for(let i=0;i<n;i++) if(ep.e[i].length){g.fillStyle=css("--soft");g.fillRect(X(i),top,X(i+1)-X(i)+.5,rowH*4)}
+  ROWS.forEach(([grp,lab],r)=>{
+    const y0=top+r*rowH,yb=y0+rowH-4;
+    g.strokeStyle=css("--line");g.beginPath();g.moveTo(padL,yb+.5);g.lineTo(W-padR,yb+.5);g.stroke();
+    for(const [sfx,col] of [["_L","--left"],["_R","--right"]]){
+      const v=ep[grp+sfx];g.strokeStyle=css(col);g.lineWidth=1.6;g.beginPath();
+      for(let i=0;i<n;i++){const y=yb-Math.min(v[i],SCALE)/SCALE*(rowH-14);i?g.lineTo(X(i),y):g.moveTo(X(i),y)}
+      g.stroke();
+    }
+    g.fillStyle=css("--muted");g.fillText(lab,padL+4,y0+11);
+  });
+  g.fillStyle=css("--fire");
+  for(let i=1;i<n;i++) if(ep.k[i]>ep.k[i-1]){g.fillRect(X(i)-1,top,2,rowH*4);}
+  g.fillStyle=css("--muted");
+  for(let s=0;s<=Math.max(n,481)/FPS;s+=2){const x=X(s*FPS);g.fillText(s+"s",Math.min(x,W-padR-18),H-4)}
+  tlBase={off,X,n,W,H,dpr,top,rowH};
+  paintPlayhead();
+}
+function paintPlayhead(){
+  if(!tlBase)return;const g=tl.getContext("2d");g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,tl.width,tl.height);g.drawImage(tlBase.off,0,0);
+  g.scale(tlBase.dpr,tlBase.dpr);const x=tlBase.X(idx);g.fillStyle=css("--ink");g.fillRect(x-1,0,2,tlBase.top+tlBase.rowH*4);
+}
+tl.addEventListener("click",ev=>{if(!tlBase)return;const r=tl.getBoundingClientRect();const fx=(ev.clientX-r.left-8)/(r.width-16);seek(Math.round(fx*(Math.max(tlBase.n,481)-1)))});
+
+/* ---------- 同步 ---------- */
+const vid=$("#vid");
+function show(i){
+  const ep=D.episodes[P];idx=Math.max(0,Math.min(ep.n-1,i));
+  $("#hudT").textContent=(idx/FPS).toFixed(1);$("#hudK").textContent=ep.k[idx];$("#scrub").value=idx;
+  for(const n of PANEL){const v=ep[n][idx];nodeEls[n].c.setAttribute("fill-opacity",(0.08+0.82*Math.min(v,SCALE)/SCALE).toFixed(2));nodeEls[n].hz.textContent=(P==="lesion025"&&n.startsWith("AOTU025"))?"0":Math.round(v)}
+  const c=cal(P),st=(ep.DNa02_R[idx]-ep.DNa02_L[idx])+(ep.AOTU019_R[idx]-ep.AOTU019_L[idx]);
+  const half=Math.max(300,c.turn_th*2.2),pos=v=>50+Math.max(-1,Math.min(1,v/half))*50;
+  const f=$("#steerF");const p=pos(st);f.style.left=Math.min(50,p)+"%";f.style.width=Math.abs(p-50)+"%";
+  f.style.background=st<0?css("--left"):css("--right");
+  $("#thL").style.left=pos(-c.turn_th)+"%";$("#thR").style.left=pos(c.turn_th)+"%";
+  $("#steerV").textContent=`R − L = ${st>=0?"+":""}${st.toFixed(1)}　閾值 ±${c.turn_th}`;
+  const mn=Math.min(ep.AOTU019_L[idx],ep.AOTU019_R[idx]);
+  $("#fireF").style.left="0";$("#fireF").style.width=Math.min(mn,SCALE)/SCALE*100+"%";$("#fireT").style.left=c.fire_th/SCALE*100+"%";
+  $("#fireV").textContent=`min(AOTU019 L, R) = ${mn.toFixed(1)} Hz　閾值 ${c.fire_th}`;
+  const a=ep.a[idx],search=!ep.e[idx].length&&a==="010";
+  $("#cL").classList.toggle("on",a[0]==="1");$("#cR").classList.toggle("on",a[1]==="1"&&!search);$("#cF").classList.toggle("on",a[2]==="1");$("#cS").classList.toggle("on",search);
+  drawFlyView(ep.e[idx]);paintPlayhead();
+}
+function frameOf(t){return Math.floor(t*FPS+1e-3)}
+function loop(){show(frameOf(vid.currentTime));if(!vid.paused&&!vid.ended)requestAnimationFrame(loop)}
+function seek(i){vid.pause();vid.currentTime=(i+0.5)/FPS;show(i);setPlay()}
+function setPlay(){$("#play").textContent=vid.paused||vid.ended?"▶ 播放":"❚❚ 暫停"}
+$("#play").onclick=()=>{if(vid.paused||vid.ended){if(vid.ended||idx>=D.episodes[P].n-1)vid.currentTime=0;vid.play().then(()=>{setPlay();requestAnimationFrame(loop)}).catch(()=>{})}else{vid.pause();setPlay()}};
+vid.addEventListener("pause",setPlay);vid.addEventListener("ended",()=>{setPlay();show(D.episodes[P].n-1)});
+$("#back").onclick=()=>seek(idx-1);$("#fwd").onclick=()=>seek(idx+1);
+$("#scrub").oninput=e=>seek(+e.target.value);
+document.querySelectorAll(".speed .btn").forEach(b=>b.onclick=()=>{vid.playbackRate=+b.dataset.r;document.querySelectorAll(".speed .btn").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+function selectCond(p){
+  P=p;document.querySelectorAll(".tab").forEach(t=>t.setAttribute("aria-selected",t.dataset.p===p));
+  const rate=vid.playbackRate;vid.pause();vid.src=p+".mp4";vid.playbackRate=rate;vid.load();
+  $("#scrub").max=D.episodes[p].n-1;$("#condNote").textContent=NOTES[p];
+  drawCircuit();drawTimeline();show(0);setPlay();
+  try{localStorage.setItem("flydoom-cond",p)}catch(e){}
+}
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>selectCond(t.dataset.p));
+
+/* ---------- 並排 ---------- */
+const trioV={};
+function buildTrio(){
+  const box=$("#trio");
+  for(const p of ["fly","lesion025","scrambled_cal"]){
+    const ep=D.episodes[p];
+    const c=document.createElement("div");c.className="cell";
+    c.innerHTML=`<div class="vbox"><video muted playsinline preload="auto" src="${p}.mp4"></video></div>
+      <div class="cap"><span>${NAMES[p]}</span><span>擊殺 <span class="big">0</span> / ${ep.kills}</span></div>
+      <div class="chips"><span class="chip l">左轉</span><span class="chip r">右轉</span><span class="chip f">開火</span></div>`;
+    box.appendChild(c);
+    const v=c.querySelector("video"),k=c.querySelector(".big"),ch=c.querySelectorAll(".chip");
+    trioV[p]={v,k,ch,ep};
+  }
+}
+function trioTick(){
+  let any=false;
+  for(const p in trioV){const {v,k,ch,ep}=trioV[p];const i=Math.min(ep.n-1,frameOf(v.currentTime));k.textContent=ep.k[i];
+    const a=ep.a[i];ch[0].classList.toggle("on",a[0]==="1");ch[1].classList.toggle("on",a[1]==="1");ch[2].classList.toggle("on",a[2]==="1");
+    if(!v.paused&&!v.ended)any=true}
+  if(any)requestAnimationFrame(trioTick);else $("#trioPlay").textContent="▶ 三個一起播放";
+}
+$("#trioPlay").onclick=()=>{
+  const vs=Object.values(trioV).map(o=>o.v),playing=vs.some(v=>!v.paused&&!v.ended);
+  if(playing){vs.forEach(v=>v.pause());$("#trioPlay").textContent="▶ 三個一起播放";return}
+  if(vs.every(v=>v.ended))vs.forEach(v=>v.currentTime=0);
+  Promise.all(vs.filter(v=>!v.ended).map(v=>v.play())).then(()=>{$("#trioPlay").textContent="❚❚ 暫停";requestAnimationFrame(trioTick)}).catch(()=>{});
+};
+$("#trioReset").onclick=()=>{Object.values(trioV).forEach(o=>{o.v.pause();o.v.currentTime=0});$("#trioPlay").textContent="▶ 三個一起播放";setTimeout(trioTick,60)};
+
+/* ---------- 圖表 ---------- */
+function axes(s,{W,H,m,xmin,xmax,ymin,ymax,xt,yt,xf,yf,xl,yl}){
+  s.innerHTML="";const X=v=>m.l+(v-xmin)/(xmax-xmin)*(W-m.l-m.r),Y=v=>H-m.b-(v-ymin)/(ymax-ymin)*(H-m.t-m.b);
+  for(const v of yt){el("line",{x1:m.l,x2:W-m.r,y1:Y(v),y2:Y(v),class:"grid"},s);const t=el("text",{x:m.l-6,y:Y(v)+3.5,class:"ax","text-anchor":"end"},s);t.textContent=yf?yf(v):v}
+  el("line",{x1:m.l,x2:W-m.r,y1:H-m.b,y2:H-m.b,class:"axl"},s);
+  for(const v of xt||[]){const t=el("text",{x:X(v),y:H-m.b+14,class:"ax","text-anchor":"middle"},s);t.textContent=xf?xf(v):v}
+  if(xl){const t=el("text",{x:(m.l+W-m.r)/2,y:H-4,class:"ax","text-anchor":"middle"},s);t.textContent=xl}
+  if(yl){const t=el("text",{x:12,y:(m.t+H-m.b)/2,class:"ax","text-anchor":"middle",transform:`rotate(-90 12 ${(m.t+H-m.b)/2})`},s);t.textContent=yl}
+  return {X,Y};
+}
+function drawTune(){
+  const s=$("#tune"),rows=D.cal.fly.rows,W=460,H=280,m={l:46,r:12,t:12,b:36};
+  const {X,Y}=axes(s,{W,H,m,xmin:-90,xmax:90,ymin:0,ymax:260,xt:[-90,-60,-30,0,30,60,90],yt:[0,50,100,150,200,250],xf:v=>(v>0?"+":"")+v+"°",xl:"敵人方位（果蠅視野）",yl:"放電率 Hz"});
+  el("rect",{x:X(-30),y:m.t,width:X(30)-X(-30),height:H-m.t-m.b,fill:"var(--soft)"},s).parentNode.insertBefore(s.lastChild,s.firstChild);
+  for(const [k,col,dash] of [["AOTU019_L","--left",""],["AOTU019_R","--right",""],["DNa02_L","--left","5 4"],["DNa02_R","--right","5 4"]]){
+    el("path",{d:rows.map((r,i)=>(i?"L":"M")+X(r.az)+","+Y(r[k])).join(""),fill:"none",stroke:`var(${col})`,"stroke-width":2.2,"stroke-dasharray":dash},s);
+    for(const r of rows) if(!dash) el("circle",{cx:X(r.az),cy:Y(r[k]),r:2.4,fill:`var(${col})`},s);
+  }
+  const t=el("text",{x:X(0),y:H-m.b-8,class:"lbl","text-anchor":"middle"},s);t.textContent="±30°：DNa02 ≈ 0";
+}
+function drawStrip(){
+  const s=$("#strip"),W=460,H=300,m={l:40,r:12,t:12,b:44};
+  const conds=[["fly","完整接線","--ok"],["lesion025","損毀 AOTU025","--right"],["scrambled_cal","打亂接線","--muted"],["random","隨機按鍵","--muted"]];
+  const {X,Y}=axes(s,{W,H,m,xmin:-.5,xmax:4.5,ymin:0,ymax:22,yt:[0,5,10,15,20],yl:"擊殺數"});
+  conds.forEach(([k,lab,col],i)=>{
+    const d=D.stats50[k],cnt={},tot={};for(const v of d.kills)tot[v]=(tot[v]||0)+1;
+    for(const v of d.kills){const j=cnt[v]=(cnt[v]||0)+1;const step=Math.min(5.2,52/tot[v]);const off=((j%2?1:-1)*Math.ceil((j-1)/2))*step;el("circle",{cx:X(i)+off,cy:Y(v),r:2.6,fill:`var(${col})`,"fill-opacity":.55},s)}
+    el("line",{x1:X(i)+40,x2:X(i)+40,y1:Y(d.ci95[0]),y2:Y(d.ci95[1]),stroke:"var(--ink)","stroke-width":4},s);
+    el("line",{x1:X(i)+30,x2:X(i)+50,y1:Y(d.mean),y2:Y(d.mean),stroke:"var(--ink)","stroke-width":2},s);
+    const t=el("text",{x:X(i)+54,y:Y(d.mean)+4,class:"ax"},s);t.textContent=d.mean.toFixed(2);
+    const l=el("text",{x:X(i)+10,y:H-m.b+16,class:"lbl","text-anchor":"middle"},s);l.textContent=lab;
+  });
+}
+function drawStatTable(){
+  const r=[["完整接線",D.stats50.fly,"—"],["損毀 AOTU025",D.stats50.lesion025,"< 0.0001"],["打亂接線（作者校準）",D.stats50.scrambled_cal,"< 0.0001"],["打亂接線（10 組各自校準）",D.selfcal,"—"],["只讀 DNa02",D.dna02_only,"—"],["隨機按鍵",D.stats50.random,"< 0.0001"]];
+  $("#statT").innerHTML="<thead><tr><th>條件</th><th>平均擊殺</th><th>95% CI</th><th>p（對完整接線）</th></tr></thead><tbody>"+
+    r.map(([n,d,p])=>`<tr><td>${n}</td><td class="n">${d.mean.toFixed(2)}</td><td class="n">${d.ci95[0].toFixed(2)}–${d.ci95[1].toFixed(2)}</td><td class="n">${p}</td></tr>`).join("")+"</tbody>";
+  $("#altK").textContent=D.dna02_only.mean.toFixed(2);
+}
+function drawBJ(){
+  const s=$("#bj"),W=460,H=300,m={l:48,r:12,t:12,b:40},b=D.blackjack,nb=b.curves["connectome + dopamine"].mean.length;
+  const {X,Y}=axes(s,{W,H,m,xmin:1,xmax:nb,ymin:-.55,ymax:0.05,xt:[1,5,10,15],xf:v=>(v*b.block/1000)+"k",yt:[-.5,-.4,-.3,-.2,-.1,0],yf:v=>v.toFixed(1),xl:"累積手數",yl:"每手平均輸贏"});
+  const refs=[["basic strategy","基本策略"],["always stand","永遠停牌"],["random","隨機"]];
+  for(const [k,lab] of refs){const y=Y(b.reference[k]);el("line",{x1:m.l,x2:W-m.r,y1:y,y2:y,stroke:"var(--muted)","stroke-dasharray":"2 3"},s);const t=el("text",{x:W-m.r-2,y:y-4,class:"ax","text-anchor":"end"},s);t.textContent=`${lab} ${(b.reference[k]).toFixed(3)}`}
+  const C=[["connectome + dopamine","連結體 + 多巴胺","--ok",2.6],["dopamine cut + exploration decay","斷多巴胺","--fire",2],["no learning + exploration decay","關可塑性","--right",2],["untrained greedy","未訓練","--muted",1.6]];
+  for(const [k,lab,col,w] of C){const v=b.curves[k].mean;el("path",{d:v.map((y,i)=>(i?"L":"M")+X(i+1)+","+Y(y)).join(""),fill:"none",stroke:`var(${col})`,"stroke-width":w,"stroke-dasharray":k.startsWith("no learning")?"6 4":""},s)}
+  $("#bjLeg").innerHTML=C.map(([k,lab,col])=>`<span><i class="sw" style="background:var(${col})"></i>${lab}</span>`).join("")+"<span>斷多巴胺與關可塑性兩條重疊</span>";
+}
+/* ---------- 21 點播放台 ---------- */
+const BJ_FPS=30,BJ_ACT=["要牌","停牌","加倍"],BJ_ST=["發牌","聞三個候選動作","選擇","抽牌","莊家翻牌","莊家補牌","結果","快轉","結束"];
+const BJ_NOTE={
+  bj_fly:E=>`每手結束後的學習方向：輸了，懲罰多巴胺減弱通往「趨近型」輸出神經元的突觸，這手聞過的情境＋動作以後聞起來更差；贏了，獎勵多巴胺減弱通往「迴避型」的突觸，聞起來更好。種子 0 每 2,000 手的平均輸贏從 ${E.blocks[0].toFixed(3)} 變成 ${E.blocks[E.blocks.length-1].toFixed(3)}，大約等於「永遠停牌」；與基本策略的一致率 ${(E.agree[0]*100).toFixed(0)}% → ${(E.agree[E.agree.length-1]*100).toFixed(0)}%（為什麼沒升，見右下卡片）。`,
+  bj_nodopa:E=>`多巴胺神經元照常放電，但到輸出神經元的連結被切斷（影片中的紅叉），突觸不會改變；探索率照樣衰減。種子 0 整場停在 ${E.blocks[E.blocks.length-1].toFixed(3)} 左右，和隨機出牌差不多。`,
+  bj_untrained:E=>`從頭到尾選好惡最高的動作、不探索、不學習。未訓練的蕈狀體在策略表 260 格裡有 239 格要牌，常常爆牌，種子 0 每手平均 ${E.blocks[E.blocks.length-1].toFixed(3)}。`
+};
+let B="bj_fly",bidx=0,bjBase=null;
+const bvid=$("#bjVid"),btl=$("#bjTl");
+const rk=c=>c===11?"A":String(c);
+function bjTotal(cs){let t=cs.reduce((a,b)=>a+b,0),ac=cs.filter(c=>c===11).length;while(t>21&&ac){t-=10;ac--}return [t,ac>0]}
+function bjCardsAt(dec,p){ // 這個決策當時手上有幾張牌：第一次決策 2 張，之後找最小張數使點數與軟硬相符
+  if(dec[4])return 2;for(let n=3;n<=p.length;n++){const [t,s]=bjTotal(p.slice(0,n));if(t===dec[1]&&(s?1:0)===dec[2])return n}return p.length;
+}
+function bjShow(i){
+  const E=D.bj_episodes[B];bidx=Math.max(0,Math.min(E.n-1,i));i=bidx;
+  const h=E.h[i],st=E.st[i],di=E.di[i],opt=E.opt[i],hand=E.hands[h],dec=di>=0?E.dec[di]:null,p=hand[2],dl=hand[3];
+  $("#bjHudH").textContent="第 "+(h+1).toLocaleString()+" 手";$("#bjHudC").textContent=(E.cum[i]>=0?"+":"")+E.cum[i].toFixed(3);$("#bjScrub").value=i;
+  $("#bjStage").textContent=BJ_ST[st]+(st===7?"（每格跳過許多手）":"");
+  let np=p.length,nd=dl.length;
+  if(st===0){np=2;nd=1}else if(st<=3&&dec){np=bjCardsAt(dec,p)+(st===3?1:0);nd=1}
+  const [pt,ps]=bjTotal(p.slice(0,np));$("#bjP").textContent=p.slice(0,np).map(rk).join(" ");$("#bjPT").textContent=(ps?"軟 ":"硬 ")+pt+(pt>21?"，爆牌":"");
+  const [dt,ds]=bjTotal(dl.slice(0,nd));$("#bjD").textContent=dl.slice(0,nd).map(rk).join(" ")+(nd<dl.length||st<4?" ▮":"");$("#bjDT").textContent=nd===1?"明牌":(ds?"軟 ":"")+dt+(dt>21?"，爆牌":"");
+  [["#bcH",0,5],["#bcS",1,6],["#bcD",2,7]].forEach(([id,a,k])=>{const c=$(id),v=dec?dec[k]:null;
+    c.textContent=BJ_ACT[a]+(v==null?"":" "+(v>=0?"+":"")+v.toFixed(3));
+    c.classList.toggle("dim",!!dec&&v==null);
+    c.classList.toggle("on",!!dec&&((st===1&&opt===a)||(st!==1&&dec[8]===a)))});
+  const sit=dec?`${dec[2]?"軟":"硬"} ${dec[1]} 對明牌 ${rk(dec[3])}：`:"";
+  $("#bjDec").textContent=dec?(st===1?`${sit}正在聞「${BJ_ACT[opt]}」`:`${sit}選「${BJ_ACT[dec[8]]}」${dec[9]?"（隨機探索）":""}　基本策略：${BJ_ACT[dec[10]]}${dec[8]===dec[10]?"，一致":""}`):(st===0?"發牌中":"沒有決策（有人拿到黑傑克）");
+  const net=E.net[i];$("#bjOut").textContent=net==null?"—":`${hand[1]==="bust"?"爆牌，":hand[1]==="dealer_bust"?"莊家爆牌，":hand[1]==="blackjack"?"黑傑克，":hand[1]==="dealer_bj"?"莊家黑傑克，":""}${net>0?"贏":net<0?"輸":"平手"} ${net>0?"+":""}${net}`;
+  $("#bjOut").style.color=net==null?"":net>0?css("--ok"):net<0?css("--fire"):css("--muted");
+  $("#bjAgr").textContent=`與基本策略一致 ${(E.agr[i]*100).toFixed(0)}%（260 格）`;
+  bjPaintHead();
+}
+function drawBjTimeline(){
+  const E=D.bj_episodes[B],dpr=window.devicePixelRatio||1,W=btl.clientWidth,H=150;
+  btl.width=W*dpr;btl.height=H*dpr;
+  const off=document.createElement("canvas");off.width=btl.width;off.height=btl.height;
+  const g=off.getContext("2d");g.scale(dpr,dpr);
+  const padL=40,padR=8,top=6,bot=H-20,n=E.n,X=i=>padL+i/(n-1)*(W-padL-padR),Y=v=>bot-(v+0.55)/0.6*(bot-top);
+  g.font="11px "+css("--sans");
+  let a=-1;for(let i=0;i<=n;i++){const ff=i<n&&E.st[i]===7;if(ff&&a<0)a=i;if(!ff&&a>=0){g.fillStyle=css("--soft");g.fillRect(X(a),top,X(i)-X(a),bot-top);a=-1}}
+  g.strokeStyle=css("--line");g.lineWidth=1;
+  for(const v of [-0.5,-0.4,-0.3,-0.2,-0.1,0]){g.beginPath();g.moveTo(padL,Y(v)+.5);g.lineTo(W-padR,Y(v)+.5);g.stroke();g.fillStyle=css("--muted");g.fillText(v.toFixed(1),4,Y(v)+4)}
+  g.setLineDash([3,3]);g.strokeStyle=css("--muted");
+  for(const [k,lab] of [["always stand","永遠停牌"],["random","隨機"]]){const y=Y(D.blackjack.reference[k]);g.beginPath();g.moveTo(padL,y);g.lineTo(W-padR,y);g.stroke();g.fillText(lab,W-padR-60,y-3)}
+  g.setLineDash([]);
+  g.strokeStyle=css("--ok");g.lineWidth=1.8;g.beginPath();
+  let started=false;for(let i=0;i<n;i++){if(E.h[i]<20)continue;const y=Y(Math.max(-0.55,Math.min(0.05,E.cum[i])));started?g.lineTo(X(i),y):g.moveTo(X(i),y);started=true}g.stroke();
+  g.fillStyle=css("--muted");g.fillText("前 20 手不畫",padL+4,top+12);
+  g.fillStyle=css("--muted");
+  const marks=[[0,"第 1 手"]];for(let i=1;i<n;i++){if(E.st[i]===7&&E.st[i-1]!==7)marks.push([i,"第 "+(E.h[i]+1).toLocaleString()+" 手起快轉"]);if(E.st[i]!==7&&E.st[i-1]===7)marks.push([i,"第 "+(E.h[i]+1).toLocaleString()+" 手"])}
+  for(const [i,t] of marks){const x=X(i);g.fillText(t,Math.min(x,W-padR-70),H-5)}
+  bjBase={off,X,n,dpr,top,bot};bjPaintHead();
+}
+function bjPaintHead(){
+  if(!bjBase)return;const g=btl.getContext("2d");g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,btl.width,btl.height);g.drawImage(bjBase.off,0,0);
+  g.scale(bjBase.dpr,bjBase.dpr);const x=bjBase.X(bidx);g.fillStyle=css("--ink");g.fillRect(x-1,bjBase.top,2,bjBase.bot-bjBase.top);
+}
+btl.addEventListener("click",ev=>{if(!bjBase)return;const r=btl.getBoundingClientRect();const fx=(ev.clientX-r.left-40)/(r.width-48);bjSeek(Math.round(Math.max(0,Math.min(1,fx))*(bjBase.n-1)))});
+function bjFrameOf(t){return Math.floor(t*BJ_FPS+1e-3)}
+function bjLoop(){bjShow(bjFrameOf(bvid.currentTime));if(!bvid.paused&&!bvid.ended)requestAnimationFrame(bjLoop)}
+function bjSeek(i){bvid.pause();bvid.currentTime=(i+0.5)/BJ_FPS;bjShow(i);bjSetPlay()}
+function bjSetPlay(){$("#bjPlay").textContent=bvid.paused||bvid.ended?"▶ 播放":"❚❚ 暫停"}
+$("#bjPlay").onclick=()=>{if(bvid.paused||bvid.ended){if(bvid.ended||bidx>=D.bj_episodes[B].n-1)bvid.currentTime=0;bvid.play().then(()=>{bjSetPlay();requestAnimationFrame(bjLoop)}).catch(()=>{})}else{bvid.pause();bjSetPlay()}};
+bvid.addEventListener("pause",bjSetPlay);bvid.addEventListener("ended",()=>{bjSetPlay();bjShow(D.bj_episodes[B].n-1)});
+$("#bjBack").onclick=()=>bjSeek(bidx-1);$("#bjFwd").onclick=()=>bjSeek(bidx+1);
+$("#bjFull").onclick=()=>{const v=bvid;(v.requestFullscreen||v.webkitEnterFullscreen||v.webkitRequestFullscreen||(()=>{})).call(v)};
+$("#bjScrub").oninput=e=>bjSeek(+e.target.value);
+document.querySelectorAll("#h-bj ~ .rig .speed .btn").forEach(b=>b.onclick=()=>{bvid.playbackRate=+b.dataset.r;b.parentNode.querySelectorAll(".btn").forEach(x=>x.setAttribute("aria-pressed",x===b))});
+function selectBj(b){
+  B=b;document.querySelectorAll(".tab[data-b]").forEach(t=>t.setAttribute("aria-selected",t.dataset.b===b));
+  const rate=bvid.playbackRate;bvid.pause();bvid.src=b+".mp4";bvid.playbackRate=rate;bvid.load();
+  $("#bjScrub").max=D.bj_episodes[b].n-1;$("#bjNote").textContent=BJ_NOTE[b](D.bj_episodes[b]);
+  drawBjTimeline();bjShow(0);bjSetPlay();
+  try{localStorage.setItem("flybj-cond",b)}catch(e){}
+}
+document.querySelectorAll(".tab[data-b]").forEach(t=>t.onclick=()=>selectBj(t.dataset.b));
+
+function redrawAll(){drawTimeline();drawTune();drawStrip();drawBJ();show(idx);drawBjTimeline();bjShow(bidx)}
+
+fetch("data.json").then(r=>r.json()).then(d=>{
+  D=d;buildTrio();drawStatTable();
+  let p="fly";try{const s=localStorage.getItem("flydoom-cond");if(s&&D.episodes[s])p=s}catch(e){}
+  selectCond(p);drawTune();drawStrip();drawBJ();
+  let b="bj_fly";try{const s=localStorage.getItem("flybj-cond");if(s&&D.bj_episodes[s])b=s}catch(e){}
+  selectBj(b);
+  setTimeout(trioTick,300);
+  new ResizeObserver(()=>{drawTimeline()}).observe(tl);
+  new ResizeObserver(()=>{drawBjTimeline()}).observe(btl);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change",redrawAll);
+  new MutationObserver(redrawAll).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+});
+</script>
